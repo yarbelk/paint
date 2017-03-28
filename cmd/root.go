@@ -15,28 +15,62 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
 	"os"
+	"regexp"
 
+	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 var cfgFile string
+var useStdout bool
+var stdoutPrefix, colorStr, pattern string
+
+func Paint(cmd *cobra.Command, args []string) {
+	scanner := bufio.NewScanner(os.Stdin)
+	var colorFunc func(...interface{}) string
+	switch colorStr {
+	case "black":
+		colorFunc = color.New(color.FgBlack).SprintFunc()
+	case "red":
+		colorFunc = color.New(color.FgRed).SprintFunc()
+	case "green":
+		colorFunc = color.New(color.FgGreen).SprintFunc()
+	case "yellow":
+		colorFunc = color.New(color.FgYellow).SprintFunc()
+	case "blue":
+		colorFunc = color.New(color.FgBlue).SprintFunc()
+	case "magenta":
+		colorFunc = color.New(color.FgMagenta).SprintFunc()
+	case "cyan":
+		colorFunc = color.New(color.FgCyan).SprintFunc()
+	case "white":
+		colorFunc = color.New(color.FgWhite).SprintFunc()
+	default:
+		colorFunc = color.New(color.FgRed).SprintFunc()
+	}
+
+	re := regexp.MustCompile(pattern)
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		painted := re.ReplaceAllString(line, colorFunc("$1"))
+		if len(stdoutPrefix) != 0 {
+			painted = colorFunc(stdoutPrefix) + painted
+		}
+		fmt.Println(painted)
+	}
+}
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "paint",
-	Short: "A brief description of your application",
-	Long: `A longer description that spans multiple lines and likely contains
-examples and usage of using your application. For example:
-
-Cobra is a CLI library for Go that empowers applications.
-This application is a tool to generate the needed files
-to quickly create a Cobra application.`,
-// Uncomment the following line if your bare application
-// has an action associated with it:
-//	Run: func(cmd *cobra.Command, args []string) { },
+	Short: "Paint output based on regex",
+	Long:  `Paint stdin and/or stderr based on simple regexs`,
+	Run:   Paint,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -58,7 +92,12 @@ func init() {
 	RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.paint.yaml)")
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	RootCmd.Flags().BoolVarP(&useStdout, "stdout", "o", true, "Paint stdout")
+	RootCmd.Flags().StringVarP(&stdoutPrefix, "stdout-prefix", "S", "", "Prefix for stdout")
+	RootCmd.Flags().StringVarP(&colorStr, "color", "c", "red", "color to paint")
+	RootCmd.Flags().StringVarP(&pattern, "pattern", "p", "", "Pattern, like (DEBUG|INFO).  It must have a capture group.")
+	// RootCmd.Flags().BoolP("stderr", "e", false, "Paint stdout")
+	// RootCmd.Flags().StringP("stderr-prefix", "E", "", "Prefix for stderr")
 }
 
 // initConfig reads in config file and ENV variables if set.
