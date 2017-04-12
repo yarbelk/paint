@@ -16,52 +16,93 @@ package cmd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
+type coloredPattern struct {
+	color   string
+	pattern string
+}
+
+type coloredPatterns []coloredPattern
+
+func (i *coloredPatterns) String() string {
+	return "stuff"
+}
+
+func (i *coloredPatterns) Set(value string) error {
+	parts := strings.SplitN(value, ",", 2)
+	if len(parts) != 2 {
+		return errors.New(fmt.Sprintf("value %s isn't correctly formatted", value))
+	}
+
+	*i = append(*i, coloredPattern{color: parts[0], pattern: parts[1]})
+	return nil
+}
+
+func (i *coloredPatterns) Type() string {
+	return "color pattern combo"
+}
+
 var cfgFile string
 var useStdout bool
-var stdoutPrefix, colorStr, pattern string
+var stdoutPrefix string
+var colors coloredPatterns = make(coloredPatterns, 0, 0)
+
+type colorFunc func(...interface{}) string
+type lookup struct {
+	re *regexp.Regexp
+	co colorFunc
+}
 
 func Paint(cmd *cobra.Command, args []string) {
 	scanner := bufio.NewScanner(os.Stdin)
-	var colorFunc func(...interface{}) string
-	switch colorStr {
-	case "black":
-		colorFunc = color.New(color.FgBlack).SprintFunc()
-	case "red":
-		colorFunc = color.New(color.FgRed).SprintFunc()
-	case "green":
-		colorFunc = color.New(color.FgGreen).SprintFunc()
-	case "yellow":
-		colorFunc = color.New(color.FgYellow).SprintFunc()
-	case "blue":
-		colorFunc = color.New(color.FgBlue).SprintFunc()
-	case "magenta":
-		colorFunc = color.New(color.FgMagenta).SprintFunc()
-	case "cyan":
-		colorFunc = color.New(color.FgCyan).SprintFunc()
-	case "white":
-		colorFunc = color.New(color.FgWhite).SprintFunc()
-	default:
-		colorFunc = color.New(color.FgRed).SprintFunc()
-	}
+	var printerLookup []lookup = make([]lookup, 0, len(colors))
 
-	re := regexp.MustCompile(pattern)
+	for _, cp := range colors {
+		var cf colorFunc
+		switch cp.color {
+		case "black":
+			cf = color.New(color.FgBlack).SprintFunc()
+		case "red":
+			cf = color.New(color.FgRed).SprintFunc()
+		case "green":
+			cf = color.New(color.FgGreen).SprintFunc()
+		case "yellow":
+			cf = color.New(color.FgYellow).SprintFunc()
+		case "blue":
+			cf = color.New(color.FgBlue).SprintFunc()
+		case "magenta":
+			cf = color.New(color.FgMagenta).SprintFunc()
+		case "cyan":
+			cf = color.New(color.FgCyan).SprintFunc()
+		case "white":
+			cf = color.New(color.FgWhite).SprintFunc()
+		default:
+			cf = color.New(color.FgRed).SprintFunc()
+		}
+
+		re := regexp.MustCompile(cp.pattern)
+		printerLookup = append(printerLookup, lookup{re, cf})
+	}
 
 	for scanner.Scan() {
 		line := scanner.Text()
-		painted := re.ReplaceAllString(line, colorFunc("$1"))
-		if len(stdoutPrefix) != 0 {
-			painted = colorFunc(stdoutPrefix) + painted
+		for _, l := range printerLookup {
+			line = l.re.ReplaceAllString(line, l.co("$1"))
 		}
-		fmt.Println(painted)
+		if len(stdoutPrefix) != 0 {
+			line = stdoutPrefix + line
+		}
+		fmt.Println(line)
 	}
 }
 
@@ -81,7 +122,6 @@ func Execute() {
 		os.Exit(-1)
 	}
 }
-
 func init() {
 	cobra.OnInitialize(initConfig)
 
@@ -94,8 +134,7 @@ func init() {
 	// when this action is called directly.
 	RootCmd.Flags().BoolVarP(&useStdout, "stdout", "o", true, "Paint stdout")
 	RootCmd.Flags().StringVarP(&stdoutPrefix, "stdout-prefix", "S", "", "Prefix for stdout")
-	RootCmd.Flags().StringVarP(&colorStr, "color", "c", "red", "color to paint")
-	RootCmd.Flags().StringVarP(&pattern, "pattern", "p", "", "Pattern, like (DEBUG|INFO).  It must have a capture group.")
+	RootCmd.Flags().VarP(&colors, "colors", "c", "color/pattern combination. Pattern must have a capture group to paint")
 	// RootCmd.Flags().BoolP("stderr", "e", false, "Paint stdout")
 	// RootCmd.Flags().StringP("stderr-prefix", "E", "", "Prefix for stderr")
 }
