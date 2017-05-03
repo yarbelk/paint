@@ -35,7 +35,7 @@ type coloredPattern struct {
 type coloredPatterns []coloredPattern
 
 func (i *coloredPatterns) String() string {
-	return "stuff"
+	return "red,(ERROR)"
 }
 
 func (i *coloredPatterns) Set(value string) error {
@@ -134,7 +134,7 @@ func init() {
 	// when this action is called directly.
 	RootCmd.Flags().BoolVarP(&useStdout, "stdout", "o", true, "Paint stdout")
 	RootCmd.Flags().StringVarP(&stdoutPrefix, "stdout-prefix", "S", "", "Prefix for stdout")
-	RootCmd.Flags().VarP(&colors, "colors", "c", "color/pattern combination. Pattern must have a capture group to paint")
+	RootCmd.Flags().VarP(&colors, "colors", "c", "color/pattern combination. Pattern must have a capture group to paint: 'red,(ERROR)' would print all ERROR in red")
 	// RootCmd.Flags().BoolP("stderr", "e", false, "Paint stdout")
 	// RootCmd.Flags().StringP("stderr-prefix", "E", "", "Prefix for stderr")
 }
